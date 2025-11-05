@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Story Map — MMIWG (Highway of Tears & Beyond)</title>
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Chart.js for simple bar chart -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#111;
+      --panel:#222;
+      --accent:#ff4444;
+      --muted:#999;
+      --card:#2a2a2a;
+      --text:#ddd;
+    }
+    html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:Inter,Segoe UI,Arial,Helvetica,sans-serif}
+    #layout { display:flex; height:100vh; max-width:1400px; margin:0 auto; }
+    #sidebar {
+      width:360px;
+      background:var(--panel);
+      padding:18px;
+      box-sizing:border-box;
+      overflow:auto;
+      border-right:1px solid #000;
+    }
+    #sidebar h1{ margin:0 0 8px 0; color:var(--accent); font-size:18px }
+    #sidebar p{ color:var(--muted); margin:6px 0 12px 0; font-size:13px }
+    .chapter-head{ cursor:pointer; padding:8px 6px; border-bottom:1px solid rgba(255,255,255,0.03); display:flex; justify-content:space-between; align-items:center; }
+    .chapter-head:hover{ background:rgba(255,255,255,0.02) }
+    .details{ display:none; padding:10px; background:var(--card); margin:8px 0; border-radius:6px; font-size:13px }
+    .details.active{ display:block }
+    .btn-small{ background:transparent;border:1px solid rgba(255,255,255,0.06); padding:6px 8px; color:var(--text); border-radius:6px; cursor:pointer; font-size:13px }
+    #mapWrap{ flex:1; position:relative; min-width:300px; }
+    #map{ position:absolute; top:0; right:0; bottom:0; left:0; }
+    .top-stats{ margin-bottom:10px; }
+    .stat-card{ background:linear-gradient(180deg, rgba(255,255,255,0.02), transparent); padding:8px; border-radius:6px; margin-bottom:8px; font-size:13px }
+    .story-popup{ color:var(--text) }
+    a { color:var(--accent); }
+    footer{ font-size:12px; color:var(--muted); margin-top:12px }
+    @media(max-width:900px){ #sidebar{ width:100%; height:45vh; } #layout{ flex-direction:column } #mapWrap{ height:55vh } }
+  </style>
+</head>
+<body>
+  <div id="layout">
+    <aside id="sidebar" aria-label="Chapters & statistics">
+      <h1>MMIWG Story Map — Highway of Tears & Beyond</h1>
+      <p>Interactive exploration of selected cases and an extensible dataset. Click a chapter to fly to that location. Replace the dataset URL in the script with a full GeoJSON to populate all cases.</p>
+
+      <div class="top-stats">
+        <div class="stat-card">
+          <strong>Quick stat (StatsCan):</strong>
+          <div>Indigenous women homicide rate (example year): <strong id="indRate">—</strong> per 100,000</div>
+          <div>Non-Indigenous women homicide rate: <strong id="nonIndRate">—</strong> per 100,000</div>
+        </div>
+
+        <canvas id="rateChart" width="300" height="160" style="background:transparent;border-radius:6px"></canvas>
+
+        <div class="stat-card" id="countsCard">
+          <strong>Dataset counts:</strong>
+          <div>Total cases loaded: <span id="totalCases">0</span></div>
+          <div>Indigenous cases (if labelled): <span id="indCases">0</span></div>
+          <div>Non-Indigenous cases (if labelled): <span id="otherCases">0</span></div>
+        </div>
+      </div>
+
+      <div id="chapters">
+        <!-- Chapter headers -->
+        <div class="chapter-head" onclick="toggleDetails('helen')">
+          <div><strong>Helen Claire Frost</strong><div style="font-size:12px;color:var(--muted)">Prince George, BC — 1970 (missing)</div></div>
+          <div><button class="btn-small">View</button></div>
+        </div>
+        <div id="helen" class="details">
+          <p><strong>Age:</strong> 17 — <strong>Status:</strong> Missing — <strong>Location:</strong> Prince George</p>
+          <p>One of the earliest named Highway of Tears cases; family-led advocacy continues. Click the marker to fly to this site.</p>
+        </div>
+
+        <div class="chapter-head" onclick="toggleDetails('ramona')">
+          <div><strong>Ramona Wilson</strong><div style="font-size:12px;color:var(--muted)">Smithers, BC — 1994</div></div>
+          <div><button class="btn-small">View</button></div>
+        </div>
+        <div id="ramona" class="details">
+          <p><strong>Age:</strong> 16 — <strong>Status:</strong> Homicide — <strong>Location:</strong> Smithers</p>
+          <p>Wet'suwet'en — remains found 1995; unsolved for many years, memorial walks persist.</p>
+        </div>
+
+        <!-- more chapters omitted for brevity; include the rest similarly -->
+        <div class="chapter-head" onclick="toggleDetails('initiatives')">
+          <div><strong>Initiatives & updates (BC)</strong><div style="font-size:12px;color:var(--muted)">Billboards, investments, inquiries</div></div>
+          <div><button class="btn-small">Read</button></div>
+        </div>
+        <div id="initiatives" class="details">
+          <p>Community groups, Carrier Sekani Family Services and others have ongoing awareness work. RCMP case counts and community estimates differ dramatically—see sources in footer.</p>
+          <p><a href="https://highwayoftears.org/" target="_blank" rel="noopener">Highway of Tears Initiative</a></p>
+        </div>
+
+      </div>
+
+      <footer>
+        Sources: StatsCan / RCMP / NWAC / MMIWG National Inquiry — summarized for display. See inline citations in the write-up.  [oai_citation:3‡Statistics Canada](https://www150.statcan.gc.ca/n1/pub/85-002-x/2022001/article/00015-eng.htm?utm_source=chatgpt.com)
+      </footer>
+    </aside>
+
+    <div id="mapWrap">
+      <div id="map" role="application" aria-label="Map"></div>
+    </div>
+  </div>
+
+<script>
+/*
+  Story map script:
+  - Loads map and base tiles
+  - Plots built-in chapter markers
+  - Attempts to fetch external GeoJSON (casesGeoJSONUrl). If available, plots points/polygons and computes counts.
+  - Renders simple bar chart comparing homicide rates (useful for context). Numbers below come from public StatsCan reporting — replace as needed.
+*/
+
+/* ---------- Configuration ---------- */
+// If you have a hosted GeoJSON of MMIW cases, set it here (CORS must allow fetch).
+// Example: '/data/cases.geojson' or 'https://your-bucket/cases.geojson'
+const casesGeoJSONUrl = '/cases.geojson'; // <- replace with your real file/URL. If not found, sample data used.
+
+// Stats used for the quick comparison chart (example values from StatsCan summaries).
+// You can update these numbers programmatically if you fetch them from an API later.
+const exampleStats = {
+  indigenousWomenHomicideRate: 4.31, // per 100k (example year) — StatsCan
+  nonIndigenousWomenHomicideRate: 0.80 // per 100k (example)
+};
+
+/* ---------- Map init ---------- */
+document.addEventListener('DOMContentLoaded', () => {
+  const map = L.map('map', { center: [54.5, -126], zoom: 6, minZoom: 4 });
+
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; OpenStreetMap & CARTO'
+  }).addTo(map);
+
+  // Simple base layer group for cases and chapters
+  const chaptersLayer = L.layerGroup().addTo(map);
+  const casesLayer = L.layerGroup().addTo(map);
+
+  /* ---------- built-in chapter markers (keeps your existing content) ---------- */
+  const chapterMarkersData = [
+    { id:'helen', coords:[53.9171, -122.7497], title:'Helen Claire Frost', popup:'Prince George — 1970 (missing)' },
+    { id:'ramona', coords:[54.78, -127.17], title:'Ramona Wilson', popup:'Smithers — 1994' },
+    { id:'tina', coords:[49.895077, -97.138451], title:'Tina Fontaine', popup:'Winnipeg — 2014 (homicide)' },
+    { id:'jean', coords:[55.25, -127.63], title:'Jean Sampare', popup:'Gitsegukla — 1971' },
+    { id:'monica', coords:[54.52, -128.52], title:'Monica Ignas', popup:'Thornhill/Terrace — 1974' },
+    { id:'delphine', coords:[54.78, -127.17], title:'Delphine Nikal', popup:'Smithers — 1990 (remains confirmed 2022)' },
+    { id:'alberta', coords:[54.31, -130.32], title:'Alberta Williams', popup:'Prince Rupert — 1989' },
+    { id:'tamara', coords:[53.9171, -122.7497], title:'Tamara Chipman', popup:'Prince George — 1998' },
+    { id:'aielah', coords:[53.9171, -122.7497], title:'Aielah Saric Auger', popup:'Near Prince George — 2008' }
+  ];
+
+  const chapterMarkers = {};
+  chapterMarkersData.forEach(d => {
+    const m = L.circleMarker(d.coords, { radius:7, color:'#ff6666', fill:true, fillOpacity:0.9 })
+                  .bindPopup(`<div class="story-popup"><strong>${d.title}</strong><div style="font-size:12px;color:#ccc">${d.popup}</div><div style="margin-top:6px"><a href="#" onclick="scrollToChapter('${d.id}');return false;">Open sidebar story</a></div></div>`);
+    m.addTo(chaptersLayer);
+    m.on('click', ()=>{ map.flyTo(d.coords, 10, {duration:1.2}); });
+    chapterMarkers[d.id] = m;
+  });
+
+  // Fit to the BC markers (exclude Tina in Manitoba)
+  try {
+    const bcGroup = L.featureGroup(Object.values(chapterMarkers).filter((_,i)=>i>0));
+    map.fitBounds(bcGroup.getBounds().pad(0.2));
+  } catch (e) { /* ignore bounds errors */ }
+
+  /* ---------- GeoJSON loading (cases) ---------- */
+  // Fallback sample GeoJSON if external file not found.
+  const sampleCases = {
+    "type":"FeatureCollection",
+    "features":[
+      { "type":"Feature", "properties": { "name":"Sample: Jane Doe", "status":"missing", "ethnicity":"Indigenous", "year":1998 }, "geometry": { "type":"Point", "coordinates":[-127.17,54.78] } },
+      { "type":"Feature", "properties": { "name":"Sample: Mary Roe", "status":"homicide", "ethnicity":"Non-Indigenous", "year":2005 }, "geometry": { "type":"Point", "coordinates":[-123.3656,48.4284] } }
+    ]
+  };
+
+  async function loadCases(url){
+    try {
+      const res = await fetch(url);
+      if(!res.ok) throw new Error('GeoJSON fetch failed');
+      const gj = await res.json();
+      return gj;
+    } catch(err){
+      console.warn('Could not load external GeoJSON; using sample dataset. Error:', err);
+      return sampleCases;
+    }
+  }
+
+  // Load the cases dataset and add to map
+  (async ()=>{
+    const gj = await loadCases(casesGeoJSONUrl);
+    let total=0, indCount=0, otherCount=0;
+
+    L.geoJSON(gj, {
+      pointToLayer: (feature, latlng) => {
+        total++;
+        const eth = (feature.properties && feature.properties.ethnicity) ? feature.properties.ethnicity.toLowerCase() : 'unknown';
+        if(eth.includes('indig') || eth.includes('first') || eth.includes('native')) indCount++;
+        else otherCount++;
+        const color = (eth.includes('indig')||eth.includes('first')||eth.includes('native')) ? '#ff4444' : '#66b2ff';
+        return L.circleMarker(latlng, { radius:6, color:color, fill:true, fillOpacity:0.9 });
+      },
+      onEachFeature: (feature, layer) => {
+        const p = feature.properties || {};
+        const html = `<div style="font-size:13px;line-height:1.2"><strong>${p.name||'Unknown'}</strong><div style="color:#ccc;font-size:12px">${p.status||''} — ${p.year||''}</div><div style="margin-top:6px">${p.note||''}</div></div>`;
+        layer.bindPopup(html);
+        layer.on('click', () => {
+          if(layer.getLatLng) map.flyTo(layer.getLatLng(), 10, {duration:1});
+        });
+        layer.addTo(casesLayer);
+      }
+    });
+
+    // Update sidebar counts
+    document.getElementById('totalCases').textContent = total;
+    document.getElementById('indCases').textContent = indCount;
+    document.getElementById('otherCases').textContent = otherCount;
+  })();
+
+  /* ---------- Simple stats panel and chart ---------- */
+  // Populate numeric stat fields
+  document.getElementById('indRate').textContent = exampleStats.indigenousWomenHomicideRate;
+  document.getElementById('nonIndRate').textContent = exampleStats.nonIndigenousWomenHomicideRate;
+
+  // Chart
+  const ctx = document.getElementById('rateChart').getContext('2d');
+  new Chart(ctx, {
+    type:'bar',
+    data: {
+      labels:['Indigenous women','Non-Indigenous women'],
+      datasets:[{
+        label:'Homicide rate (per 100k)',
+        data:[exampleStats.indigenousWomenHomicideRate, exampleStats.nonIndigenousWomenHomicideRate],
+        backgroundColor:['rgba(255,68,68,0.9)','rgba(102,178,255,0.9)'],
+        borderRadius:6
+      }]
+    },
+    options:{
+      plugins:{legend:{display:false}},
+      scales:{ y:{ beginAtZero:true } }
+    }
+  });
+
+  /* ---------- Expose a global helper for sidebar links ---------- */
+  window.scrollToChapter = function(id){
+    // open details and fly to marker if present
+    const el = document.getElementById(id);
+    if(el){
+      // open only this one
+      document.querySelectorAll('.details').forEach(d=>d.classList.remove('active'));
+      el.classList.add('active');
+    }
+    if(chapterMarkers[id]){
+      const latlng = chapterMarkers[id].getLatLng();
+      if(latlng) map.flyTo(latlng, 11, {duration:1.2});
+      chapterMarkers[id].openPopup?.();
+    }
+  };
+
+  /* ---------- Small UI helper: toggle details ---------- */
+  window.toggleDetails = function(id){
+    const el = document.getElementById(id);
+    if(!el) return;
+    const active = el.classList.contains('active');
+    document.querySelectorAll('.details').forEach(d=>d.classList.remove('active'));
+    if(!active){ el.classList.add('active'); el.scrollIntoView({behavior:'smooth', block:'center'}); }
+  };
+});
+</script>
+</body>
+</html>
